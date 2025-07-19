@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# bws-init - CLI tool for initializing Bitwarden Secrets Manager in projects
+# This is the main entry point that handles cross-platform execution
+
+set -e
+
+# Determine the script's directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Source the main implementation
+source "$ROOT_DIR/src/bws-init.sh"
+
+# Pass all arguments to the main function
+main "$@"
