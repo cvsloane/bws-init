@@ -1,0 +1,29 @@
+﻿# Binaries
+bin/
+*.exe
+*.dll
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# BWS project
+  files
+.bws-project
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+
+# Temporary
+  files
+*.tmp
+*.temp
