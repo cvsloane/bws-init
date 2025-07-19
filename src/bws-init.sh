@@ -2,7 +2,7 @@
 # bws-init - Main implementation
 # Bitwarden Secrets Manager project initialization tool
 
-VERSION="1.0.3"
+VERSION="1.1.0"
 
 # Colors for output
 RED='\033[0;31m'
@@ -26,23 +26,38 @@ usage() {
 bws-init v${VERSION} - Initialize Bitwarden Secrets Manager for your project
 
 Usage: bws-init [OPTIONS] [PROJECT_NAME]
+       bws-init --sync PROJECT_NAME [OPTIONS]
+       bws-init --list-projects
+
+MODES:
+    Default mode: Initialize BWS project and upload secrets from .env files
+    --sync:      Download secrets from existing BWS project to .env files  
+    --list:      List available BWS projects for syncing
 
 Options:
     -h, --help              Show this help message
     -v, --version           Show version information
     -e, --env ENV           Process only specific environment (local|production|all)
     -o, --output DIR        Output directory for scripts (default: scripts/bitwarden)
-    -f, --force             Overwrite existing project
+    -f, --force             Overwrite existing project/files
     -d, --dry-run           Show what would be done without making changes
     -V, --verbose           Enable verbose output
     --no-scripts            Don't generate retrieval scripts
     --no-upload             Don't upload secrets (only create project)
+    --sync PROJECT_NAME     Sync secrets from existing BWS project
+    --list-projects         List available BWS projects
 
 Examples:
+    # Initialize new project
     bws-init                    # Initialize with auto-detected project name
     bws-init "My Project"       # Initialize with specific project name
     bws-init -e production      # Only process production env files
     bws-init -d                 # Dry run to see what would be created
+    
+    # Sync from existing project
+    bws-init --sync "My Project"          # Download all secrets to .env
+    bws-init --sync "My Project" -e prod  # Download only production secrets
+    bws-init --list-projects              # Show available projects
 
 EOF
 }
@@ -422,11 +437,153 @@ EOF
     log DEBUG "Saved project info to .bws-project"
 }
 
+# Function to list available BWS projects
+list_projects() {
+    log INFO "Available BWS projects:"
+    
+    local projects
+    projects=$($BWS_CMD project list 2>/dev/null)
+    
+    if [ $? -ne 0 ]; then
+        log ERROR "Failed to list projects"
+        return 1
+    fi
+    
+    if [ "$(echo "$projects" | jq '. | length')" -eq 0 ]; then
+        log WARN "No BWS projects found"
+        return 0
+    fi
+    
+    echo "$projects" | jq -r '.[] | "  \(.name) (ID: \(.id))"'
+    echo ""
+    log INFO "Use: bws-init --sync \"PROJECT_NAME\" to sync from a project"
+}
+
+# Function to find project by name
+find_project_by_name() {
+    local name="$1"
+    
+    local projects
+    projects=$($BWS_CMD project list 2>/dev/null)
+    
+    if [ $? -ne 0 ]; then
+        log ERROR "Failed to list projects"
+        return 1
+    fi
+    
+    echo "$projects" | jq -r ".[] | select(.name == \"$name\") | .id"
+}
+
+# Function to sync secrets from BWS project
+sync_from_project() {
+    local project_name="$1"
+    
+    if [ -z "$project_name" ]; then
+        log ERROR "Project name required for sync mode"
+        return 1
+    fi
+    
+    log INFO "Finding BWS project: $project_name"
+    
+    local project_id
+    project_id=$(find_project_by_name "$project_name")
+    
+    if [ -z "$project_id" ]; then
+        log ERROR "Project '$project_name' not found"
+        log INFO "Available projects:"
+        list_projects
+        return 1
+    fi
+    
+    log INFO "Found project '$project_name' with ID: $project_id"
+    
+    # Get secrets from BWS
+    log INFO "Retrieving secrets from BWS..."
+    local secrets
+    secrets=$($BWS_CMD secret list "$project_id" 2>/dev/null)
+    
+    if [ $? -ne 0 ]; then
+        log ERROR "Failed to retrieve secrets from project"
+        return 1
+    fi
+    
+    local secret_count
+    secret_count=$(echo "$secrets" | jq '. | length')
+    log INFO "Found $secret_count secrets"
+    
+    if [ "$secret_count" -eq 0 ]; then
+        log WARN "No secrets found in project"
+        return 0
+    fi
+    
+    # Determine target env file based on ENV_TYPE
+    local target_file=".env"
+    if [ "$ENV_TYPE" != "all" ]; then
+        target_file=".env.$ENV_TYPE"
+    fi
+    
+    if [ "$DRY_RUN" = true ]; then
+        log INFO "[DRY RUN] Would create/update: $target_file"
+        log INFO "[DRY RUN] Secrets to download:"
+        echo "$secrets" | jq -r '.[] | "  \(.key)"'
+        return 0
+    fi
+    
+    # Check if target file exists and ask for confirmation
+    if [ -f "$target_file" ] && [ "$FORCE" != true ]; then
+        log WARN "File $target_file already exists"
+        read -p "Overwrite? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log INFO "Sync cancelled"
+            return 0
+        fi
+    fi
+    
+    # Create env file from secrets
+    log INFO "Creating $target_file..."
+    
+    {
+        echo "# Environment variables synced from BWS project: $project_name"
+        echo "# Project ID: $project_id"
+        echo "# Synced: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        echo "# BWS-Init Version: $VERSION"
+        echo ""
+        
+        echo "$secrets" | jq -r '.[] | "\(.key)=\"\(.value)\""'
+    } > "$target_file"
+    
+    log SUCCESS "Successfully synced $secret_count secrets to $target_file"
+    
+    # Create .bws-project file for future operations
+    cat > .bws-project << EOF
+PROJECT_NAME=$project_name
+PROJECT_ID=$project_id
+SYNCED=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+BWS_INIT_VERSION=$VERSION
+MODE=sync
+EOF
+    
+    log INFO "Created .bws-project file for future operations"
+    
+    # Optionally create sync scripts
+    if [ "$NO_SCRIPTS" != true ]; then
+        PROJECT_ID="$project_id"
+        PROJECT_NAME="$project_name"
+        create_retrieval_scripts
+    fi
+    
+    return 0
+}
+
 # Main function
 main() {
     local FORCE=false
     local NO_SCRIPTS=false
     local NO_UPLOAD=false
+    local SYNC_MODE=false
+    local LIST_PROJECTS=false
+    local SYNC_PROJECT_NAME=""
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -467,6 +624,15 @@ main() {
                 NO_UPLOAD=true
                 shift
                 ;;
+            --sync)
+                SYNC_MODE=true
+                SYNC_PROJECT_NAME="$2"
+                shift 2
+                ;;
+            --list-projects)
+                LIST_PROJECTS=true
+                shift
+                ;;
             -*)
                 log ERROR "Unknown option: $1"
                 usage
@@ -479,15 +645,29 @@ main() {
         esac
     done
     
-    # Header
-    echo -e "${BLUE}bws-init v${VERSION}${NC}"
-    echo "======================================"
-    echo ""
-    
-    # Check prerequisites
+    # Check prerequisites first
     if ! check_prerequisites; then
         exit 1
     fi
+    
+    # Handle special modes
+    if [ "$LIST_PROJECTS" = true ]; then
+        list_projects
+        exit 0
+    fi
+    
+    if [ "$SYNC_MODE" = true ]; then
+        echo -e "${BLUE}bws-init v${VERSION} - Sync Mode${NC}"
+        echo "======================================"
+        echo ""
+        sync_from_project "$SYNC_PROJECT_NAME"
+        exit $?
+    fi
+    
+    # Header for default mode
+    echo -e "${BLUE}bws-init v${VERSION}${NC}"
+    echo "======================================"
+    echo ""
     
     # Get project name if not provided
     if [ -z "$PROJECT_NAME" ]; then

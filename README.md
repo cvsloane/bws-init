@@ -1,16 +1,26 @@
 # bws-init
 
-A command-line tool for initializing Bitwarden Secrets Manager (BWS) in any project. Automatically detects environment files, creates a BWS project, uploads secrets, and generates retrieval scripts.
+A comprehensive command-line tool for **bidirectional** Bitwarden Secrets Manager (BWS) integration. Upload secrets from .env files to BWS or download secrets from BWS to new machines.
 
 ## Features
 
+### 🚀 **Project Initialization** (Upload Mode)
 - 🔍 **Auto-detection** of all environment files (.env, .env.local, .env.production, etc.)
 - 🚀 **One-command setup** for Bitwarden Secrets Manager
 - 🔐 **Secure secret generation** for placeholder values
 - 📜 **Retrieval script generation** for easy secret syncing
+
+### 🔄 **Project Synchronization** (Download Mode) 
+- 📥 **Download secrets** from existing BWS projects to new machines
+- 🔍 **Project discovery** - list and select from available BWS projects
+- 🎯 **Environment targeting** - sync to specific .env files (.env.production, etc.)
+- 🔄 **Bidirectional sync** - works both ways (upload/download)
+
+### 🛠️ **General Features**
 - 🖥️ **Cross-platform support** (Windows, Linux, macOS, WSL)
 - 🏃 **Dry-run mode** to preview changes before applying
 - 📦 **Zero dependencies** (except BWS CLI)
+- 🔄 **Duplicate prevention** - reuses existing projects
 
 ## Installation
 
@@ -48,7 +58,11 @@ Add the `bin` directory to your system PATH through System Properties → Enviro
 
 ## Usage
 
-### Basic Usage
+bws-init supports two main modes:
+
+### 🚀 **Upload Mode** (Initialize Projects)
+
+Upload secrets from .env files to a new BWS project:
 
 ```bash
 # Initialize BWS in current directory
@@ -64,21 +78,46 @@ bws-init --env production
 bws-init --dry-run
 ```
 
+### 📥 **Download Mode** (Sync from BWS)
+
+Download secrets from existing BWS projects to new machines:
+
+```bash
+# List available BWS projects
+bws-init --list-projects
+
+# Sync all secrets from a project to .env
+bws-init --sync "My Project"
+
+# Sync production secrets to .env.production
+bws-init --sync "My Project" --env production
+
+# Dry run to see what would be downloaded
+bws-init --sync "My Project" --dry-run
+```
+
 ### Command-Line Options
 
 ```
+# Upload Mode
 bws-init [OPTIONS] [PROJECT_NAME]
+
+# Download Mode  
+bws-init --sync PROJECT_NAME [OPTIONS]
+bws-init --list-projects
 
 Options:
     -h, --help              Show help message
     -v, --version           Show version information
     -e, --env ENV           Process only specific environment (local|production|all)
     -o, --output DIR        Output directory for scripts (default: scripts/bitwarden)
-    -f, --force             Overwrite existing project
+    -f, --force             Overwrite existing project/files
     -d, --dry-run           Show what would be done without making changes
     -V, --verbose           Enable verbose output
     --no-scripts            Don't generate retrieval scripts
     --no-upload             Don't upload secrets (only create project)
+    --sync PROJECT_NAME     Download secrets from existing BWS project
+    --list-projects         List available BWS projects
 ```
 
 ### Examples
@@ -125,13 +164,61 @@ To retrieve secrets:
 ./scripts/bitwarden/get-secrets.sh production
 ```
 
+#### Sync from existing BWS project (New Machine Setup)
+
+**Scenario**: You have a BWS project "my-web-app" and want to set up development on a new machine.
+
+```bash
+# Step 1: List available projects
+$ bws-init --list-projects
+Available BWS projects:
+  my-web-app (ID: 123e4567-e89b-12d3-a456-426614174000)
+  mobile-app (ID: 987fcdeb-51a2-4b3c-d456-123456789abc)
+
+# Step 2: Sync all secrets to .env
+$ bws-init --sync "my-web-app"
+bws-init v1.1.0 - Sync Mode
+======================================
+[INFO] Finding BWS project: my-web-app
+[INFO] Found project 'my-web-app' with ID: 123e4567-e89b-12d3-a456-426614174000
+[INFO] Retrieving secrets from BWS...
+[INFO] Found 15 secrets
+[INFO] Creating .env...
+[SUCCESS] Successfully synced 15 secrets to .env
+
+# Step 3: Verify secrets downloaded
+$ head -5 .env
+# Environment variables synced from BWS project: my-web-app
+# Project ID: 123e4567-e89b-12d3-a456-426614174000
+# Synced: 2024-01-15T10:30:00Z
+DATABASE_URL="postgresql://user:pass@localhost/myapp"
+API_KEY="sk-1234567890abcdef"
+```
+
+#### Environment-specific sync
+```bash
+# Sync only production secrets to .env.production
+bws-init --sync "my-web-app" --env production
+
+# Sync staging secrets to .env.staging  
+bws-init --sync "my-web-app" --env staging
+```
+
 ## How It Works
 
+### Upload Mode (Project Initialization)
 1. **Environment Detection**: Scans for all `.env*` files in your project
 2. **Project Creation**: Creates a new BWS project with your repository name
 3. **Secret Upload**: Parses env files and uploads all variables to BWS
 4. **Security Enhancement**: Automatically generates secure values for placeholder secrets
 5. **Script Generation**: Creates platform-specific scripts for retrieving secrets
+
+### Download Mode (Project Synchronization)
+1. **Project Discovery**: Lists available BWS projects or finds by name
+2. **Secret Retrieval**: Downloads all secrets from the specified BWS project
+3. **Environment Mapping**: Creates appropriate .env files based on --env parameter
+4. **File Generation**: Generates .env files with proper formatting and metadata
+5. **Local Setup**: Creates .bws-project file and sync scripts for future use
 
 ## Environment File Support
 
