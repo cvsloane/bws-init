@@ -188,6 +188,21 @@ create_bws_project() {
         return 0
     fi
     
+    # First check if project already exists
+    log DEBUG "Checking for existing project..."
+    local projects
+    projects=$($BWS_CMD project list 2>/dev/null)
+    
+    if [ $? -eq 0 ]; then
+        PROJECT_ID=$(echo "$projects" | jq -r ".[] | select(.name == \"$name\") | .id" 2>/dev/null)
+        
+        if [ -n "$PROJECT_ID" ]; then
+            log INFO "Using existing project '$name' with ID: $PROJECT_ID"
+            return 0
+        fi
+    fi
+    
+    # Create new project if it doesn't exist
     log INFO "Creating BWS project '$name'..."
     
     local result
@@ -198,21 +213,7 @@ create_bws_project() {
         log SUCCESS "Project created with ID: $PROJECT_ID"
         return 0
     else
-        # Check if project already exists
-        log DEBUG "Checking for existing project..."
-        local projects
-        projects=$($BWS_CMD project list 2>/dev/null)
-        
-        if [ $? -eq 0 ]; then
-            PROJECT_ID=$(echo "$projects" | jq -r ".[] | select(.name == \"$name\") | .id" 2>/dev/null)
-            
-            if [ -n "$PROJECT_ID" ]; then
-                log WARN "Project already exists with ID: $PROJECT_ID"
-                return 0
-            fi
-        fi
-        
-        log ERROR "Failed to create or find project"
+        log ERROR "Failed to create project: $result"
         return 1
     fi
 }
@@ -532,7 +533,7 @@ main() {
         local successful_secrets=0
         declare -A processed_keys
         
-        echo "$env_files" | while read -r env_file; do
+        while IFS= read -r env_file; do
             [ -z "$env_file" ] && continue
             
             log INFO "Processing $env_file..."
@@ -565,7 +566,7 @@ main() {
                     ((successful_secrets++))
                 fi
             done < <(parse_env_file "$env_file")
-        done
+        done <<< "$env_files"
         
         log INFO "Processed $successful_secrets/$total_secrets secrets"
     fi
