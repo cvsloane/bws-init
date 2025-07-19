@@ -28,12 +28,12 @@ A command-line tool for initializing Bitwarden Secrets Manager (BWS) in any proj
 
 #### Option 1: Clone the repository
 ```bash
-git clone https://github.com/yourusername/bws-init.git
+git clone https://github.com/cvsloane/bws-init.git
 cd bws-init
 ```
 
 #### Option 2: Download release
-Download the latest release from the [Releases](https://github.com/yourusername/bws-init/releases) page.
+Download the latest release from the [Releases](https://github.com/cvsloane/bws-init/releases) page.
 
 ### Add to PATH
 
@@ -163,7 +163,7 @@ bws-init automatically detects and processes:
     BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
   run: |
     # Download bws-init
-    curl -L https://github.com/yourusername/bws-init/releases/latest/download/bws-init.tar.gz | tar -xz
+    curl -L https://github.com/cvsloane/bws-init/releases/latest/download/bws-init.tar.gz | tar -xz
     
     # Get production secrets
     ./bws-init/bin/bws-init --no-upload --no-scripts
@@ -247,6 +247,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/bws-init/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/bws-init/discussions)
-- **Security**: Please report security issues privately to [security@example.com]
+- **Issues**: [GitHub Issues](https://github.com/cvsloane/bws-init/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/cvsloane/bws-init/discussions)
+- **Security**: Please report security issues privately to info@heavisidegroup.com
