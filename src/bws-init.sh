@@ -2,7 +2,7 @@
 # bws-init - Main implementation
 # Bitwarden Secrets Manager project initialization tool
 
-VERSION="1.0.0"
+VERSION="1.0.2"
 
 # Colors for output
 RED='\033[0;31m'

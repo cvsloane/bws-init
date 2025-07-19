@@ -14,7 +14,7 @@ param(
     [switch]$Version
 )
 
-$script:VERSION = "1.0.0"
+$script:VERSION = "1.0.2"
 
 # Enable verbose output if requested
 if ($Verbose) {
