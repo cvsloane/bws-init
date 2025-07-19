@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Build release packages
+      run: |
+        chmod +x scripts/build-release.sh
+        ./scripts/build-release.sh
+    
+    - name: Get version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ steps.get_version.outputs.VERSION }}
+        body: |
+          ## What's New
+          
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          
+          ## Installation
+          
+          ### Unix/Linux/macOS
+          ```bash
+          curl -L https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/bws-init-${{ steps.get_version.outputs.VERSION }}-unix.tar.gz | tar -xz
+          cd bws-init
+          ./scripts/install.sh
+          ```
+          
+          ### Windows
+          Download and extract the Windows zip file, then add the `bin` directory to your PATH.
+        draft: false
+        prerelease: false
+    
+    - name: Upload Unix Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./releases/${{ steps.get_version.outputs.VERSION }}/bws-init-${{ steps.get_version.outputs.VERSION }}-unix.tar.gz
+        asset_name: bws-init-${{ steps.get_version.outputs.VERSION }}-unix.tar.gz
+        asset_content_type: application/gzip
+    
+    - name: Upload Windows Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./releases/${{ steps.get_version.outputs.VERSION }}/bws-init-${{ steps.get_version.outputs.VERSION }}-windows.zip
+        asset_name: bws-init-${{ steps.get_version.outputs.VERSION }}-windows.zip
+        asset_content_type: application/zip
+    
+    - name: Upload Standalone Shell Script
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./releases/${{ steps.get_version.outputs.VERSION }}/bws-init-standalone.sh
+        asset_name: bws-init-standalone.sh
+        asset_content_type: text/plain
+    
+    - name: Upload Standalone PowerShell Script
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./releases/${{ steps.get_version.outputs.VERSION }}/bws-init-standalone.ps1
+        asset_name: bws-init-standalone.ps1
+        asset_content_type: text/plain
+    
+    - name: Upload Checksums
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./releases/${{ steps.get_version.outputs.VERSION }}/checksums.txt
+        asset_name: checksums.txt
+        asset_content_type: text/plain
